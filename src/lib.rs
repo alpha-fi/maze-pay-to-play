@@ -46,6 +46,7 @@ impl MazeGameBuyerContract {
         let mut game_costs: HashMap<u8, u128> = HashMap::new();
         
         game_costs.insert(1, to_yocto_u8(15));
+        game_costs.insert(10, to_yocto_u8(14));
         Self {
             owner_id,
             cheddar_contract,

@@ -1,4 +1,5 @@
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
+use near_sdk::log;
 use near_sdk::{near_bindgen, AccountId, json_types::U128, env, PromiseOrValue};
 use crate::utils::safe_u128_to_u16;
 use crate::MazeGameBuyerContractExt;
@@ -19,7 +20,7 @@ impl FungibleTokenReceiver for MazeGameBuyerContract {
         let mut game_promo_num = 0;
         // game_costs should always be limited to 4 key-value pairs
         for (key, value) in self.game_costs.clone().into_iter() {
-            if amount.0 / key as u128 > value {
+            if amount.0 / key as u128 >= value {
                 game_promo_num = key;
             } else {
                 break;

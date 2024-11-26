@@ -138,7 +138,10 @@ mod tests {
     fn get_default_game_costs() {
         let (_, contract) = setup_contract();
         // this test did not call set_greeting so should return the default "Hello" greeting
-        assert_eq!(contract.get_games_costs(), vec![(1, to_yocto_u8(15))].into_iter().collect());
+        let mut game_costs = HashMap::new();
+        game_costs.insert(1, to_yocto_u8(15));
+        game_costs.insert(10, to_yocto_u8(14));
+        assert_eq!(contract.get_games_costs(), game_costs);
     }
 
     #[test]

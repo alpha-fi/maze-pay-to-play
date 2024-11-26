@@ -76,10 +76,10 @@ impl MazeGameBuyerContract {
         self.cheddar_contract = cheddar_contract;
     }
 
-    pub fn get_user_remaining_free_games(&self, account_id: AccountId) -> GameAmount {
+    pub fn get_user_remaining_free_games(&self, account_id: &AccountId) -> GameAmount {
         let day = env::block_timestamp_ms() / DAY_MS;
         log!("Day: {}", day);
-        let user_free_remaining_games_data = self.user_remaining_free_games.get(&account_id).unwrap_or(&FreeGameInfo {
+        let user_free_remaining_games_data = self.user_remaining_free_games.get(account_id).unwrap_or(&FreeGameInfo {
             day: 0,
             amount: 0,
         });
@@ -94,7 +94,7 @@ impl MazeGameBuyerContract {
         self.assert_only_owner();
         let day = env::block_timestamp_ms() / DAY_MS;
 
-        let user_remaining_free_games = self.get_user_remaining_free_games(account_id.clone());
+        let user_remaining_free_games = self.get_user_remaining_free_games(&account_id);
 
         self.user_remaining_free_games.insert(account_id.clone(), FreeGameInfo {
             day,
@@ -102,13 +102,17 @@ impl MazeGameBuyerContract {
         });
     }
 
-    pub fn get_user_remaining_paid_games(&self, account_id: AccountId) -> GameAmount {
-        *self.user_remaining_paid_games.get(&account_id).unwrap_or(&0)
+    pub fn get_user_remaining_paid_games(&self, account_id: &AccountId) -> GameAmount {
+        *self.user_remaining_paid_games.get(account_id).unwrap_or(&0)
     }
 
     fn add_games_to_user(&mut self, account_id: AccountId, amount: GameAmount) {
-        let user_remaining_paid_games = self.get_user_remaining_paid_games(account_id.clone());
+        let user_remaining_paid_games = self.get_user_remaining_paid_games(&account_id);
         self.user_remaining_paid_games.insert(account_id, user_remaining_paid_games + amount);
+    }
+
+    pub fn get_user_remaining_games(&self, account_id: &AccountId) -> (GameAmount, GameAmount) {
+        (self.get_user_remaining_free_games(account_id), self.get_user_remaining_paid_games(account_id))
     }
 }
 
@@ -172,7 +176,7 @@ mod tests {
         let (_, contract) = setup_contract();
         let user = AccountId::from_str("test.near").unwrap();
         // this test did not call set_greeting so should return the default "Hello" greeting
-        assert_eq!(contract.get_user_remaining_free_games(user), 5);
+        assert_eq!(contract.get_user_remaining_free_games(&user), 5);
     }
 
     #[test]
@@ -180,7 +184,7 @@ mod tests {
         let (_, mut contract) = setup_contract();
         let user = AccountId::from_str("test.near").unwrap();
         contract.give_free_game_to_user(user.clone());
-        assert_eq!(contract.get_user_remaining_free_games(user), 6);
+        assert_eq!(contract.get_user_remaining_free_games(&user), 6);
     }
 
     #[test]
@@ -189,7 +193,21 @@ mod tests {
         let user = AccountId::from_str("test.near").unwrap();
         contract.give_free_game_to_user(user.clone());
         testing_env!(context.block_timestamp(2 * DAY_MS * MSECOND).build());
-        assert_eq!(contract.get_user_remaining_free_games(user), 5);
+        assert_eq!(contract.get_user_remaining_free_games(&user), 5);
+    }
+
+    #[test]
+    fn get_paid_games() {
+        let (_, contract) = setup_contract();
+        let user = AccountId::from_str("test.near").unwrap();
+        assert_eq!(contract.get_user_remaining_paid_games(&user), 0);
+    }
+
+    #[test]
+    fn get_remaining_games() {
+        let (_, contract) = setup_contract();
+        let user = AccountId::from_str("test.near").unwrap();
+        assert_eq!(contract.get_user_remaining_games(&user), (5, 0));
     }
 
 }

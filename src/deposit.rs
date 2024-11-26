@@ -1,5 +1,4 @@
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
-use near_sdk::log;
 use near_sdk::{near_bindgen, AccountId, json_types::U128, env, PromiseOrValue};
 use crate::utils::safe_u128_to_u16;
 use crate::MazeGameBuyerContractExt;

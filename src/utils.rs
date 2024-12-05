@@ -22,3 +22,7 @@ pub fn safe_u128_to_u16(value: u128) -> Result<u16, &'static str> {
 pub fn get_today_day() -> u64 {
     env::block_timestamp_ms() / DAY_MS
 }
+
+pub fn get_now_ms() -> u64 {
+    env::block_timestamp_ms()
+}

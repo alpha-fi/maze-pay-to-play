@@ -10,7 +10,7 @@ use near_sdk::{
 };
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use schemars::JsonSchema;
-use utils::{get_today_day, to_yocto_u8};
+use utils::{get_now_ms, get_today_day, to_yocto_u8};
 use structs::game_struct_json::GameJson;
 
 mod internal;
@@ -19,11 +19,12 @@ mod utils;
 mod structs;
 mod external;
 
-pub type Day = u64;
+pub type Day = u64; // Having this data type, means how many days passed since 01/01/1970
 pub type GameAmount = u16;
 pub type SeedId = u64;
 
 const DAY_MS: u64 = 24 * 3600 * 1000;
+const MIN_MS: u64 = 60 * 1000;
 
 
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -38,6 +39,16 @@ pub struct Game {
     is_ending_game: bool
 }
 
+impl Default for Game {
+    fn default() -> Self {
+        Self {
+            seed_id: 0,
+            start_time: 0,
+            is_ending_game: false
+        }
+    }
+}
+
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct MazeGameBuyerContract {
@@ -50,6 +61,7 @@ pub struct MazeGameBuyerContract {
     min_deposit: Balance,
     ongoing_games: UnorderedMap<AccountId, Game>,
     maze_minter_contract: AccountId,
+    max_game_duration: u64,
 }
 
 #[derive(Deserialize, Serialize, JsonSchema)]
@@ -61,6 +73,7 @@ pub struct ContractState {
     game_costs: Vec<[String; 2]>,
     seed_id: SeedId,
     min_deposit: String,
+    max_game_duration: u64,
 }
 
 
@@ -89,6 +102,7 @@ impl MazeGameBuyerContract {
             min_deposit: 1_000_000_000_000_000_000_000, // 0.001 NEAR
             ongoing_games: UnorderedMap::new(b"ongoing_games".to_vec()),
             maze_minter_contract,
+            max_game_duration: 3 * MIN_MS,
         }
     }
 
@@ -100,6 +114,7 @@ impl MazeGameBuyerContract {
             game_costs: self.get_games_costs(),
             seed_id: self.seed_id,
             min_deposit: self.min_deposit.to_string(),
+            max_game_duration: 3 * MIN_MS,
         }
     }
 
@@ -182,7 +197,7 @@ impl MazeGameBuyerContract {
         let (remaining_free_games, remaining_paid_games) = self.get_user_remaining_games(&account_id);
         assert!(remaining_free_games > 0 || remaining_paid_games > 0, "No games remaining for the user");
 
-        let user_ongoing_game = self.ongoing_games.get(&account_id);
+        let user_ongoing_game = self.get_user_ongoing_game(account_id.clone());
         assert!(user_ongoing_game.is_none(), "User already has an ongoing game");
 
         self.decrease_game(account_id.clone());
@@ -209,16 +224,19 @@ impl MazeGameBuyerContract {
         }
     }
 
-    pub fn get_user_ongoing_game(&self, account_id: AccountId) -> GameJson {
-        let ongoing_game = self.ongoing_games.get(&account_id).unwrap_or(Game {
-            seed_id: 0,
-            start_time: 0,
-            is_ending_game: false
-        });
-        GameJson {
+    pub fn get_user_ongoing_game(&self, account_id: AccountId) -> Option<GameJson> {
+        let ongoing_game = self.ongoing_games.get(&account_id).unwrap_or(Game::default());
+        let now = get_now_ms();
+        log!("Now: {}", get_now_ms());
+        log!("Start time: {}", ongoing_game.start_time);
+        assert!(now >= ongoing_game.start_time, "Start time is in the future");
+        if get_now_ms() - ongoing_game.start_time >= self.max_game_duration {
+            return None
+        }; 
+        Some(GameJson {
             seed_id: ongoing_game.seed_id,
             start_time: ongoing_game.start_time,
-        }
+        })
     }
 
     pub fn end_game(&mut self, account_id: AccountId, amount: U128, referral: Option<AccountId>) -> Promise {
@@ -227,7 +245,7 @@ impl MazeGameBuyerContract {
     }
 
     fn internal_end_game(&mut self, account_id: AccountId, amount: U128, referral: Option<AccountId>) -> Promise {
-        let ongoing_game = self.ongoing_games.get(&account_id);
+        let ongoing_game = self.get_user_ongoing_game(account_id.clone());
         assert!(ongoing_game.is_some(), "No ongoing game for the user");
         self.ongoing_games.remove(&account_id);
 
@@ -278,11 +296,11 @@ mod tests {
 
     use super::*;
 
-    const MSECOND: u64 = 1_000_000;
+    const MS_TO_NANOS: u64 = 1_000_000;
 
     fn setup_contract() -> (VMContextBuilder, MazeGameBuyerContract) {
         let mut context = VMContextBuilder::new();
-        testing_env!(context.predecessor_account_id(accounts(0)).block_timestamp(DAY_MS * MSECOND).build());
+        testing_env!(context.predecessor_account_id(accounts(0)).block_timestamp(DAY_MS * MS_TO_NANOS).build());
         let cheddar_contract = AccountId::from_str("token.cheddar.near").unwrap();
         let maze_minter_contract = AccountId::from_str("minter.near").unwrap();
         let contract = MazeGameBuyerContract::new(cheddar_contract, maze_minter_contract);
@@ -346,7 +364,7 @@ mod tests {
         let (mut context, mut contract) = setup_contract();
         let user = AccountId::from_str("test.near").unwrap();
         contract.give_free_game_to_user(user.clone());
-        testing_env!(context.block_timestamp(2 * DAY_MS * MSECOND).build());
+        testing_env!(context.block_timestamp(2 * DAY_MS * MS_TO_NANOS).build());
         assert_eq!(contract.get_user_remaining_free_games(&user), 5);
     }
 
@@ -381,11 +399,11 @@ mod tests {
         testing_env!(context.build());
         let user = accounts(0);
         let ongoing_game = contract.get_user_ongoing_game(user.clone());
-        assert!(ongoing_game.seed_id == 0);
-        assert!(ongoing_game.start_time == 0);
+        assert!(ongoing_game.is_none());
         contract.get_seed_id();
         let ongoing_game = contract.get_user_ongoing_game(user.clone());
-        assert!(ongoing_game.seed_id == 1);
+        assert!(ongoing_game.is_some());
+        assert!(ongoing_game.unwrap().seed_id == 1);
     }
 
     #[test]
@@ -405,10 +423,35 @@ mod tests {
         let user = accounts(0);
         assert_eq!(contract.get_seed_id(), 1);
         let ongoing_game = contract.get_user_ongoing_game(user.clone());
-        assert!(ongoing_game.seed_id == 1);
+        assert!(ongoing_game.is_some());
+        let unwraped_ongoing_game = ongoing_game.unwrap();
+        assert!(unwraped_ongoing_game.seed_id == 1);
+        assert!(unwraped_ongoing_game.start_time > 0);
         contract.lose_game();
         let ongoing_game = contract.get_user_ongoing_game(user.clone());
-        assert!(ongoing_game.seed_id == 0);
+        assert!(ongoing_game.is_none());
+    }
+
+    #[test]
+    fn ensure_game_lost_after_time() {
+        let (mut context, mut contract) = setup_contract();
+        context.attached_deposit(NearToken::from_yoctonear(1_000_000_000_000_000_000_000));
+        testing_env!(context.build());
+        let user = accounts(0);
+
+        assert_eq!(contract.get_seed_id(), 1);
+        let ongoing_game = contract.get_user_ongoing_game(user.clone());
+        assert!(ongoing_game.is_some());
+        let unwraped_ongoing_game = ongoing_game.unwrap();
+        assert!(unwraped_ongoing_game.seed_id == 1);
+        assert!(unwraped_ongoing_game.start_time > 0);
+
+        let state = contract.get_contract_state();
+        let new_time = (get_now_ms() + state.max_game_duration) * MS_TO_NANOS;
+        testing_env!(context.predecessor_account_id(accounts(0)).block_timestamp(new_time).build());
+
+        let ongoing_game = contract.get_user_ongoing_game(user.clone());
+        assert!(ongoing_game.is_none());
     }
 
 }

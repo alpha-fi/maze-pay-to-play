@@ -64,6 +64,19 @@ pub struct MazeGameBuyerContract {
     max_game_duration: u64,
 }
 
+#[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
+pub struct OldMazeGameBuyerContract {
+    owner_id: AccountId,
+    cheddar_contract: AccountId,
+    game_costs: IterableMap<u8, Balance>,
+    user_remaining_free_games: UnorderedMap<AccountId, FreeGameInfo>,
+    user_remaining_paid_games: UnorderedMap<AccountId, GameAmount>,
+    seed_id: SeedId,
+    min_deposit: Balance,
+    ongoing_games: UnorderedMap<AccountId, Game>,
+    maze_minter_contract: AccountId,
+}
+
 #[derive(Deserialize, Serialize, JsonSchema)]
 #[serde(crate = "near_sdk::serde")]
 pub struct ContractState {
@@ -104,6 +117,31 @@ impl MazeGameBuyerContract {
             maze_minter_contract,
             max_game_duration: 3 * MIN_MS,
         }
+    }
+
+    #[init(ignore_state)]
+    pub fn migrate() -> Self {
+        // Load the existing state
+        let old_state: OldMazeGameBuyerContract = env::state_read().expect("Failed to read state");
+
+        // Create the new state, adding the default value for the new property
+        let new_state = Self {
+            owner_id: old_state.owner_id,
+            cheddar_contract: old_state.cheddar_contract,
+            game_costs: old_state.game_costs,
+            user_remaining_free_games: old_state.user_remaining_free_games,
+            user_remaining_paid_games: old_state.user_remaining_paid_games,
+            seed_id: old_state.seed_id,
+            min_deposit: old_state.min_deposit,
+            ongoing_games: old_state.ongoing_games,
+            maze_minter_contract: old_state.maze_minter_contract,
+            max_game_duration: 3 * MIN_MS,
+        };
+
+        // Save the new state
+        env::state_write(&new_state);
+
+        new_state
     }
 
     pub fn get_contract_state(&self) -> ContractState {

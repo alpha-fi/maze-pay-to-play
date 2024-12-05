@@ -223,14 +223,22 @@ impl MazeGameBuyerContract {
 
     pub fn end_game(&mut self, account_id: AccountId, amount: U128, referral: Option<AccountId>) -> Promise {
         self.assert_only_owner();
+        self.internal_end_game(account_id, amount, referral)
+    }
+
+    fn internal_end_game(&mut self, account_id: AccountId, amount: U128, referral: Option<AccountId>) -> Promise {
         let ongoing_game = self.ongoing_games.get(&account_id);
         assert!(ongoing_game.is_some(), "No ongoing game for the user");
         self.ongoing_games.remove(&account_id);
 
-        ext_maze_minter::ext(self.maze_minter_contract.clone())
-            .with_static_gas(Gas::from_tgas(30))
-            .with_attached_deposit(NearToken::from_yoctonear(1))
-            .mint(account_id, amount, referral)
+        if amount > U128(0) {
+            ext_maze_minter::ext(self.maze_minter_contract.clone())
+                .with_static_gas(Gas::from_tgas(30))
+                .with_attached_deposit(NearToken::from_yoctonear(1))
+                .mint(account_id, amount, referral)
+        } else {
+            Promise::new(account_id)
+        }
     }
 
     pub fn set_maze_minter_contract(&mut self, maze_minter_contract: AccountId) {
@@ -250,6 +258,11 @@ impl MazeGameBuyerContract {
                 "Minting failed".to_string()
             }
         }
+    }
+
+    pub fn lose_game(&mut self) {
+        let account_id = env::predecessor_account_id();
+        self.internal_end_game(account_id, U128(0), None);
     }
 }
 
@@ -382,6 +395,20 @@ mod tests {
         contract.set_maze_minter_contract(new_maze_minter_contract.clone());
         let contract_state = contract.get_contract_state();
         assert!(contract_state.maze_minter_contract == new_maze_minter_contract);
+    }
+
+    #[test]
+    fn lose_game() {
+        let (mut context, mut contract) = setup_contract();
+        context.attached_deposit(NearToken::from_yoctonear(1_000_000_000_000_000_000_000));
+        testing_env!(context.build());
+        let user = accounts(0);
+        assert_eq!(contract.get_seed_id(), 1);
+        let ongoing_game = contract.get_user_ongoing_game(user.clone());
+        assert!(ongoing_game.seed_id == 1);
+        contract.lose_game();
+        let ongoing_game = contract.get_user_ongoing_game(user.clone());
+        assert!(ongoing_game.seed_id == 0);
     }
 
 }

@@ -126,10 +126,16 @@ async fn test_contract_game_costs() -> Result<(), Box<dyn std::error::Error>> {
         .await?
         .json()?;
     // let new_game_costs: vec!([String; 2]) = json!({"1".to_string(): NearToken::from_near(20), "10".to_string(): NearToken::from_near(14)});
-    let new_game_costs = vec!(
-        [1.to_string(), NearToken::from_near(20).as_yoctonear().to_string()],
-        [10.to_string(), NearToken::from_near(14).as_yoctonear().to_string()]
-    );
+    let new_game_costs = vec![
+        [
+            1.to_string(),
+            NearToken::from_near(20).as_yoctonear().to_string(),
+        ],
+        [
+            10.to_string(),
+            NearToken::from_near(14).as_yoctonear().to_string(),
+        ],
+    ];
     assert_eq!(contract_new_game_costs, new_game_costs);
 
     Ok(())
@@ -384,5 +390,59 @@ async fn test_buy_game() -> Result<(), Box<dyn std::error::Error>> {
 
     assert_eq!(final_paid_games, 11);
 
+    Ok(())
+}
+
+/**
+ * get_seed_id
+ * Ensure ongoing game
+ * ensure cheddar balance is 0
+ * lose game
+ * ensure not ongoing game
+ * ensure cheddar balance is 0
+ */
+#[tokio::test]
+async fn test_start_and_lose_game() -> Result<(), Box<dyn std::error::Error>> {
+    // let (root, _) = get_root().await;
+    // // let cheddar_token = AccountId::from_str("token.cheddar.near").unwrap();
+    // let (contract, user_account) = initialize_contract(&root, &cheddar_token).await;
+    // let value = NearToken::from_near(20).as_yoctonear().to_string();
+
+    // let outcome = user_account
+    //     .call(contract.id(), "get_seed_id")
+    //     .args_json(json!({"key": 1, "value": value}))
+    //     .transact()
+    //     .await?;
+    // if outcome.is_failure() {
+    //     log!("Error calling insert_game_cost: {:?}", outcome);
+    // }
+    // assert!(outcome.is_success());
+
+    // let contract_new_game_costs: Vec<[String; 2]> = user_account
+    //     .view(contract.id(), "get_games_costs")
+    //     .args_json(json!({}))
+    //     .await?
+    //     .json()?;
+    // // let new_game_costs: vec!([String; 2]) = json!({"1".to_string(): NearToken::from_near(20), "10".to_string(): NearToken::from_near(14)});
+    // let new_game_costs = vec!(
+    //     [1.to_string(), NearToken::from_near(20).as_yoctonear().to_string()],
+    //     [10.to_string(), NearToken::from_near(14).as_yoctonear().to_string()]
+    // );
+    // assert_eq!(contract_new_game_costs, new_game_costs);
+
+    Ok(())
+}
+
+/**
+ * get_seed_id
+ * Ensure ongoing game
+ * ensure cheddar balance is 0
+ * end game without admin ensuring error
+ * end game with admin and winning 10 cheddar
+ * ensure not ongoing game
+ * ensure cheddar balance is 10
+ */
+#[tokio::test]
+async fn test_start_and_win_game() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }

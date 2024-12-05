@@ -282,6 +282,11 @@ impl MazeGameBuyerContract {
         let account_id = env::predecessor_account_id();
         self.internal_end_game(account_id, U128(0), None);
     }
+
+    pub fn set_max_game_duration(&mut self, game_duration_seconds: u64) {
+        self.assert_only_owner();
+        self.max_game_duration = game_duration_seconds * 1000;
+    }
 }
 
 /*

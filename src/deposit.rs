@@ -39,5 +39,6 @@ impl FungibleTokenReceiver for MazeGameBuyerContract {
         PromiseOrValue::Value(U128::from(remaining_cheddar))
 
     }
-
+    
+    
 }

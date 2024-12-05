@@ -1,3 +1,4 @@
+use external::ext_maze_minter;
 use near_contract_standards::fungible_token::Balance;
 use near_sdk::collections::UnorderedMap;
 use near_sdk::json_types::U128;
@@ -5,7 +6,7 @@ use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::store::IterableMap;
 // Find all our documentation at https://docs.near.org
 use near_sdk::{
-    env, log, near_bindgen, require, AccountId, PanicOnDefault
+    env, log, near_bindgen, require, AccountId, Gas, NearToken, PanicOnDefault, Promise
 };
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use schemars::JsonSchema;
@@ -16,6 +17,7 @@ mod internal;
 mod deposit;
 mod utils;
 mod structs;
+mod external;
 
 pub type Day = u64;
 pub type GameAmount = u16;
@@ -33,6 +35,7 @@ pub struct FreeGameInfo {
 pub struct Game {
 	seed_id: SeedId,
 	start_time: u64,
+    is_ending_game: bool
 }
 
 #[near_bindgen]
@@ -187,6 +190,7 @@ impl MazeGameBuyerContract {
         self.ongoing_games.insert(&account_id, &Game {
             seed_id: self.seed_id,
             start_time: env::block_timestamp_ms(),
+            is_ending_game: false
         });
         self.seed_id
     }
@@ -209,6 +213,7 @@ impl MazeGameBuyerContract {
         let ongoing_game = self.ongoing_games.get(&account_id).unwrap_or(Game {
             seed_id: 0,
             start_time: 0,
+            is_ending_game: false
         });
         GameJson {
             seed_id: ongoing_game.seed_id,
@@ -216,15 +221,35 @@ impl MazeGameBuyerContract {
         }
     }
 
-    pub fn end_game(&mut self, account_id: AccountId) {
+    pub fn end_game(&mut self, account_id: AccountId, amount: U128, referral: Option<AccountId>) -> Promise {
         self.assert_only_owner();
+        let ongoing_game = self.ongoing_games.get(&account_id);
+        assert!(ongoing_game.is_some(), "No ongoing game for the user");
         self.ongoing_games.remove(&account_id);
 
+        ext_maze_minter::ext(self.maze_minter_contract.clone())
+            .with_static_gas(Gas::from_tgas(30))
+            .with_attached_deposit(NearToken::from_yoctonear(1))
+            .mint(account_id, amount, referral)
     }
 
     pub fn set_maze_minter_contract(&mut self, maze_minter_contract: AccountId) {
         self.assert_only_owner();
         self.maze_minter_contract = maze_minter_contract;
+    }
+
+    #[private]
+    pub fn on_mint_callback(&self) -> String {
+        match env::promise_result(0) {
+            near_sdk::PromiseResult::Successful(_) => {
+                env::log_str("Minting successful");
+                "Minting successful".to_string()
+            }
+            near_sdk::PromiseResult::Failed => {
+                env::log_str("Minting failed");
+                "Minting failed".to_string()
+            }
+        }
     }
 }
 

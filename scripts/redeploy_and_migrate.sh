@@ -1,6 +1,7 @@
 # export ACC=maze-buyer.testnet
 # export FN=migrate
 # export ARGS={}
+# bash scripts/redeploy_and_migrate.sh maze-buyer.testnet migrate "{}"
 set +e
 
 if [ "$#" -ne 3 ]; then

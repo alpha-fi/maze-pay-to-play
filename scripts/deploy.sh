@@ -1,6 +1,8 @@
 # export ACC=maze-buyer.testnet
 # export CH=token-v3.cheddar.testnet
 # export MI=maze1.cheddar.testnet
+# bash scripts/deploy.sh maze-buyer.testnet token-v3.cheddar.testnet maze1.cheddar.testnet
+
 set +e
 
 if [ "$#" -ne 3 ]; then
@@ -19,3 +21,5 @@ near deploy $ACCOUNT_ID ./res/target/maze_game_buyer_contract.wasm \
     --initFunction new \
     --initArgs '{"cheddar_contract": "'$CHEDDAR_CONTRACT'", "maze_minter_contract": "'$MINTER_CONTRACT'"}' \
     --verbose
+
+near call $CHEDDAR_CONTRACT storage_deposit --accountId $ACCOUNT_ID --deposit 0.1

@@ -119,21 +119,36 @@ impl MazeGameBuyerContract {
         }
     }
 
+    // This hasn't been properly tested, but it is supposed to be the right way. Be sure to add the new variables in case of migrating
     #[init(ignore_state)]
     pub fn migrate() -> Self {
         // Load the existing state
         let old_state: OldMazeGameBuyerContract = env::state_read().expect("Failed to read state");
 
+        let mut new_user_remaining_free_games = UnorderedMap::new(b"g"); // Use a new storage prefix
+        for (key, value) in old_state.user_remaining_free_games.iter() {
+            new_user_remaining_free_games.insert(&key, &value);
+        }
+
+        let mut new_user_remaining_paid_games = UnorderedMap::new(b"g"); // Use a new storage prefix
+        for (key, value) in old_state.user_remaining_paid_games.iter() {
+            new_user_remaining_paid_games.insert(&key, &value);
+        }
+
+        let mut new_ongoing_games = UnorderedMap::new(b"g"); // Use a new storage prefix
+        for (key, value) in old_state.ongoing_games.iter() {
+            new_ongoing_games.insert(&key, &value);
+        }
         // Create the new state, adding the default value for the new property
         let new_state = Self {
             owner_id: old_state.owner_id,
             cheddar_contract: old_state.cheddar_contract,
             game_costs: old_state.game_costs,
-            user_remaining_free_games: old_state.user_remaining_free_games,
-            user_remaining_paid_games: old_state.user_remaining_paid_games,
+            user_remaining_free_games: new_user_remaining_free_games,
+            user_remaining_paid_games: new_user_remaining_paid_games,
             seed_id: old_state.seed_id,
             min_deposit: old_state.min_deposit,
-            ongoing_games: old_state.ongoing_games,
+            ongoing_games: new_ongoing_games,
             maze_minter_contract: old_state.maze_minter_contract,
             max_game_duration: 3 * MIN_MS,
         };

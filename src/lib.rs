@@ -250,9 +250,6 @@ impl MazeGameBuyerContract {
         let (remaining_free_games, remaining_paid_games) = self.get_user_remaining_games(&account_id);
         assert!(remaining_free_games > 0 || remaining_paid_games > 0, "No games remaining for the user");
 
-        let user_ongoing_game = self.get_user_ongoing_game(account_id.clone());
-        assert!(user_ongoing_game.is_none(), "User already has an ongoing game");
-
         self.decrease_game(account_id.clone());
         self.seed_id += 1;
         self.ongoing_games.insert(&account_id, &Game {
@@ -329,11 +326,6 @@ impl MazeGameBuyerContract {
                 "Minting failed".to_string()
             }
         }
-    }
-
-    pub fn lose_game(&mut self) {
-        let account_id = env::predecessor_account_id();
-        self.internal_end_game(account_id, U128(0), None);
     }
 
     pub fn set_max_game_duration(&mut self, game_duration_seconds: u64) {
@@ -471,23 +463,6 @@ mod tests {
         contract.set_maze_minter_contract(new_maze_minter_contract.clone());
         let contract_state = contract.get_contract_state();
         assert!(contract_state.maze_minter_contract == new_maze_minter_contract);
-    }
-
-    #[test]
-    fn lose_game() {
-        let (mut context, mut contract) = setup_contract();
-        context.attached_deposit(NearToken::from_yoctonear(1_000_000_000_000_000_000_000));
-        testing_env!(context.build());
-        let user = accounts(0);
-        assert_eq!(contract.get_seed_id(), 1);
-        let ongoing_game = contract.get_user_ongoing_game(user.clone());
-        assert!(ongoing_game.is_some());
-        let unwraped_ongoing_game = ongoing_game.unwrap();
-        assert!(unwraped_ongoing_game.seed_id == 1);
-        assert!(unwraped_ongoing_game.start_time > 0);
-        contract.lose_game();
-        let ongoing_game = contract.get_user_ongoing_game(user.clone());
-        assert!(ongoing_game.is_none());
     }
 
     #[test]

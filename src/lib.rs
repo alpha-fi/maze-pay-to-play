@@ -243,10 +243,15 @@ impl MazeGameBuyerContract {
 
     #[payable]
     pub fn get_seed_id(&mut self) -> SeedId {
+        let account_id = env::predecessor_account_id();
+        let user_ongoing_game = self.ongoing_games.get(&account_id);
+        if user_ongoing_game.is_some() {
+            self.lose_game();
+        }
+
         let deposit = env::attached_deposit();
         assert!(deposit.as_yoctonear() >= self.min_deposit, "Deposit must be at least {} yoctoNEAR", self.min_deposit);
 
-        let account_id = env::predecessor_account_id();
         let (remaining_free_games, remaining_paid_games) = self.get_user_remaining_games(&account_id);
         assert!(remaining_free_games > 0 || remaining_paid_games > 0, "No games remaining for the user");
 
@@ -259,6 +264,12 @@ impl MazeGameBuyerContract {
         });
         self.seed_id
     }
+
+    fn lose_game(&mut self) {
+        let account_id = env::predecessor_account_id();
+        self.internal_end_game(account_id, U128(0), None);
+    }
+
 
     fn decrease_game(&mut self, account_id: AccountId) {
         let (remaining_free_games, remaining_paid_games) = self.get_user_remaining_games(&account_id);
@@ -296,7 +307,7 @@ impl MazeGameBuyerContract {
 
     fn internal_end_game(&mut self, account_id: AccountId, amount: U128, referral: Option<AccountId>) -> Promise {
         let ongoing_game = self.get_user_ongoing_game(account_id.clone());
-        assert!(ongoing_game.is_some(), "No ongoing game for the user");
+        assert!(ongoing_game.is_none(), "No ongoing game for the user");
         self.ongoing_games.remove(&account_id);
 
         if amount > U128(0) {
@@ -312,6 +323,10 @@ impl MazeGameBuyerContract {
     pub fn set_maze_minter_contract(&mut self, maze_minter_contract: AccountId) {
         self.assert_only_owner();
         self.maze_minter_contract = maze_minter_contract;
+    }
+
+    pub fn validate_ongoing_game(self) -> bool{
+        return false
     }
 
     #[private]

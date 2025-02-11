@@ -244,8 +244,10 @@ impl MazeGameBuyerContract {
     #[payable]
     pub fn get_seed_id(&mut self) -> SeedId {
         let account_id = env::predecessor_account_id();
-        let user_ongoing_game = self.ongoing_games.get(&account_id);
+        let user_ongoing_game = self.get_user_ongoing_game(account_id.clone());
+        log!("User ongoing game: {:?}", user_ongoing_game.is_some());
         if user_ongoing_game.is_some() {
+            log!("User has ongoing game. Losing it");
             self.lose_game();
         }
 
@@ -307,7 +309,7 @@ impl MazeGameBuyerContract {
 
     fn internal_end_game(&mut self, account_id: AccountId, amount: U128, referral: Option<AccountId>) -> Promise {
         let ongoing_game = self.get_user_ongoing_game(account_id.clone());
-        assert!(ongoing_game.is_none(), "No ongoing game for the user");
+        assert!(ongoing_game.is_some(), "No ongoing game for the user");
         self.ongoing_games.remove(&account_id);
 
         if amount > U128(0) {
@@ -455,6 +457,33 @@ mod tests {
         let user = accounts(0);
         assert_eq!(contract.get_seed_id(), 1);
         assert_eq!(contract.get_user_remaining_games(&user), (4, 0));
+    }
+
+    #[test]
+    fn get_seed_id_assume_lose_get_new_seed_id() {
+        let (mut context, mut contract) = setup_contract();
+        context.attached_deposit(NearToken::from_yoctonear(1_000_000_000_000_000_000_000));
+        testing_env!(context.build());
+        let user = accounts(0);
+        assert_eq!(contract.get_seed_id(), 1);
+        assert_eq!(contract.get_user_remaining_games(&user), (4, 0));
+
+        assert_eq!(contract.get_seed_id(), 2);
+        assert_eq!(contract.get_user_remaining_games(&user), (3, 0));
+    }
+
+    #[test]
+    fn win_and_restart() {
+        let (mut context, mut contract) = setup_contract();
+        context.attached_deposit(NearToken::from_yoctonear(1_000_000_000_000_000_000_000));
+        testing_env!(context.build());
+        let user = accounts(0);
+        assert_eq!(contract.get_seed_id(), 1);
+        assert_eq!(contract.get_user_remaining_games(&user), (4, 0));
+
+        contract.end_game(user.clone(), U128(1_000_000_000_000_000_000_000_000), None);
+        assert_eq!(contract.get_seed_id(), 2);
+        assert_eq!(contract.get_user_remaining_games(&user), (3, 0));
     }
 
     #[test]
